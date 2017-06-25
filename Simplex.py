@@ -77,6 +77,7 @@ def readlines():
 		varRestrictions.append(r)
 	#print(varRestrictions)
 	return n,m,problemType,coefficientList,restrictionCoefficientMatrix,restrictionTypeList,RHS,varRestrictions
+
 def printSimplexTable(ttable):
 	for i in range(0,ttable.shape[0]):
 		for j in range(0,ttable.shape[1]):
@@ -195,67 +196,77 @@ def generateFirstTable(n,m,nA,baseList,coefficientList,restrictionCoefficientMat
 	table=numpy.insert(table,0,zline,axis=0)
 	return table
 
-def simplexStep(baseList,nBaseList,coefficientList,ttable,matrixA,b):
+def simplexStep(baseList,nBaseList,ttable,b):
 	print("BASE1",baseList)
 	print("non-BASE1",nBaseList)
 	printSimplexTable(ttable)
 	newTable=ttable.copy()
 	nRows=ttable.shape[0]
 	nCols=ttable.shape[1]
+	if min(ttable[0][:len(ttable[0])-1])>=0: print("ERRO FATAL")
 	indexforIN=ttable[0].tolist().index(min(ttable[0][:len(ttable[0])-1]))
 	r=[]
-	matrixN=numpy.zeros((nRows-1,len(nBaseList)))
-	matrixB=numpy.zeros((nRows-1,len(baseList)))
-	Cn=numpy.zeros((1,len(nBaseList)))
-	Cb=numpy.zeros((1,len(baseList)))
+	print("AAA",indexforIN)
+	for i in range(1,nRows):
+		try:
+			r.append(ttable[i][nCols-1]/ttable[i][indexforIN])
+		except:
+			continue
+	indexforOUT=r.index(min(numpy.array([num for num in r if num >= 0])))
+	print("BBB",indexforOUT)
+	nonbaseIN=nBaseList[indexforIN]
+	pivot=ttable[indexforOUT+1,nonbaseIN]
+	print(nBaseList[indexforIN])
+	nBaseList[nBaseList.index(indexforIN)]=baseList[indexforOUT]
+	baseList[indexforOUT]=indexforIN
+	print(baseList,nBaseList)
+	pivotLine=ttable[indexforOUT+1,:]/pivot
+	print("PIVOTLINE:",pivotLine)
+	ttable[indexforOUT+1,:]=pivotLine
+	for i in range(0,nRows):
+		if i==indexforOUT+1: 
+			continue
+		else:
+			thisLine=ttable[i,:]
+			#print("THISLINE:",thisLine)
+			coefficient=ttable[i,nonbaseIN]
+			ttable[i,:]=thisLine-(pivotLine*coefficient)
+	return baseList,nBaseList,ttable
+	
+def makeTablePhase2(ttable,baseList,nBaseList,nArtificial,coefficientList,matrixA):
 	count=0
-	for i in nBaseList:
-		Cn[0,count]=coefficientList[i]
+	newBaseList=list(baseList)
+	newNonBaseList=list(nBaseList)
+	l=len(coefficientList)
+	for i in range(0,nArtificial):
+		matrixA=numpy.delete(matrixA,l-i-1,1)
+		del coefficientList[l-i-1]
+		newNonBaseList.remove(l-i-1)
+		ttable=numpy.delete(ttable,l-i-1,1)
+	nRows=ttable.shape[0]
+	nCols=ttable.shape[1]
+	matrixN=numpy.zeros((nRows-1,len(newNonBaseList)))
+	matrixB=numpy.zeros((nRows-1,len(newBaseList)))
+	Cb=numpy.zeros((1,len(baseList)))
+	for e in newBaseList:
+		matrixB[:,count]=ttable[1:,e]
 		count+=1
+	count=0
+	for e in newNonBaseList:
+		matrixN[:,count]=ttable[1:,e]
+		count+=1
+	Cb=numpy.zeros((1,len(baseList)))
 	count=0
 	for i in baseList:
 		Cb[0,count]=coefficientList[i]
 		count+=1
-	Cn=Cn.transpose()
 	Cb=Cb.transpose()
-	print(Cn,Cb)
-	print("AAA",indexforIN)
-
-	for i in range(1,nRows):
-		r.append(ttable[i][nCols-1]/ttable[i][indexforIN])
-	indexforOUT=r.index(min(r))
-	print("BBB",indexforOUT)
-	nBaseList[nBaseList.index(indexforIN)]=baseList[indexforOUT]
-	baseList[indexforOUT]=indexforIN
-	count=0
-	for e in baseList:
-		matrixB[:,count]=matrixA[:,e]
-		count+=1
-	count=0
-	for e in nBaseList:
-		matrixN[:,count]=matrixA[:,e]
-		count+=1
-	BInverse=numpy.linalg.inv(matrixB)
-	newRHS=numpy.dot(BInverse,b)
-	zrhs=numpy.dot(numpy.dot(Cb.transpose(),BInverse),b)
-	nonBasicsY=numpy.dot(BInverse,matrixN)
-	nonbasicsZ=Cn.transpose()-numpy.dot(numpy.dot(Cb.transpose(),BInverse),matrixN)
-	count=0
-	for i in baseList:
-		newTable[0,i]=0
-		newTable[1:,i]=numpy.identity(nRows-1)[:,count]
-		count+=1
-	count=0
-	for i in nBaseList:
-		newTable[0,i]=nonbasicsZ[0][count]
-		newTable[1:,i]=nonBasicsY[:,count]
-		count+=1
-	newTable[0,nCols-1]=zrhs[0][0]
-	newTable[1:,[nCols-1]]=newRHS[:]
-	print("BASES:",baseList)
-	print("NON-BASES",nBaseList)
-	printSimplexTable(newTable)
-	return baseList,nBaseList,newTable
+	for i in range(0,len(newNonBaseList)):
+		Costb=coefficientList[newNonBaseList[i]]
+		zb=numpy.dot(Cb.transpose(),ttable[1:,newNonBaseList[i]])
+		ttable[0,newNonBaseList[i]]=Costb-zb
+	ttable[0,nCols-1]=0-numpy.dot(Cb.transpose(),ttable[1:,nCols-1])
+	return ttable,newNonBaseList,newBaseList,matrixA,coefficientList
 
 def doTheSimplex(n,m,problemType,coefficientList,restrictionCoefficientMatrix,restrictionTypeList,varRestrictions,RHS):
 	BaseList=pickBasicsPhase1(n=n,m=m,coefficientList=coefficientList,restrictionTypeList=restrictionTypeList)
@@ -267,9 +278,23 @@ def doTheSimplex(n,m,problemType,coefficientList,restrictionCoefficientMatrix,re
 	artificialCoefficientList=numpy.zeros(len(coefficientList)+1)
 	for i in range(2,nArtificial+2):
 		artificialCoefficientList[len(artificialCoefficientList)-i]=1
-	BaseList,nonBaseList,ttable=simplexStep(baseList=list(BaseList),nBaseList=list(nonBaseList),coefficientList=artificialCoefficientList.copy(),ttable=firstTable,matrixA=restrictionCoefficientMatrix,b=RHS.copy())
+	ttable=firstTable.copy()
+	while min(ttable[0][:len(ttable[0])-1])<0:
+		print("---------------------\n NEW STEP \n\n")
+		BaseList,nonBaseList,ttable=simplexStep(baseList=list(BaseList),nBaseList=list(nonBaseList),ttable=ttable,b=RHS.copy())
 	print("TABLE 2: \n\n")
+	print("BASELIST:",BaseList)
+	print("NONBASELIST",nonBaseList)
 	printSimplexTable(ttable)
+	print("===============================================\nEND OF PHASE 1")
+	ttable,nonBaseList,BaseList,restrictionCoefficientMatrix,coefficientList =makeTablePhase2(ttable=ttable.copy(),baseList=list(BaseList),nBaseList=list(nonBaseList),nArtificial=nArtificial,coefficientList=list(coefficientList),matrixA=restrictionCoefficientMatrix.copy())
+	print("===============================================\n BEGIN PHASE 2")
+	printSimplexTable(ttable)
+	while min(ttable[0][:len(ttable[0])-1])<0:
+		print("---------------------\n NEW STEP \n\n")
+		BaseList,nonBaseList,ttable=simplexStep(baseList=list(BaseList),nBaseList=list(nonBaseList),ttable=ttable,b=RHS.copy())
+
+
 
 def main():
 		n,m,problemType,coefficientList,restrictionCoefficientMatrix,restrictionTypeList,RHS,varRestrictions=readlines()
