@@ -2,10 +2,6 @@
 #ALUNO: Alex Pungartnik Handel
 #DRE: 114147792
 #Periodo: 2017.1
-#IMPORTANTE: o programa assume que:
-#	1.caso o PPL seja inviavel, sera detectado na fase 1
-#	2.as variaveis sao numeradas de 0 ao numero de variaveis-1, sempre
-#NOTA: Faltou achar a direcao no caso de solucoes infinitas
 
 
 import numpy
